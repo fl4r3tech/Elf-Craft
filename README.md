@@ -1,5 +1,13 @@
 # ELF-Craft
 
+![Status](https://img.shields.io/badge/status-work%20in%20progress-orange)
+![Stage](https://img.shields.io/badge/stage-beta%20%2F%20bug%20testing-blue)
+
+> **⚠️ Notice:** This project is currently in an active **Beta / Work-in-Progress (WIP)** stage. It is published for community visibility, code review, and debugging purposes. Expect breaking changes, unpolished features, and ongoing bug fixes.
+
+---
+
+
 A from-scratch C++17 rewrite of [SPRXPatcher](https://notnite.com/blog/ps3), a PS3 homebrew tool that patches a decrypted game executable (`EBOOT.elf`) to load a custom `.sprx` plugin at startup.
 
 This isn't a port — it's an independent reimplementation with a general-purpose ELF library underneath, three real correctness bugs found and fixed relative to the original tool, and a test suite (169 checks) that runs clean under AddressSanitizer and UndefinedBehaviorSanitizer. It's built for PS3 homebrew development and reverse-engineering education.
