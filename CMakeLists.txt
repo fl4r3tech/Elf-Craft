@@ -12,7 +12,12 @@ endif()
 option(SPRX_ENABLE_SANITIZERS "Build with -fsanitize=address,undefined" OFF)
 option(SPRX_BUILD_TESTS "Build the test suite" ON)
 
-add_compile_options(-Wall -Wextra -Wpedantic)
+# Select appropriate warning flags based on the compiler
+if(MSVC)
+    add_compile_options(/W4)
+else()
+    add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
 if(SPRX_ENABLE_SANITIZERS)
     add_compile_options(-fsanitize=address,undefined -g)
