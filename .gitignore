@@ -67,3 +67,8 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# IDE and Editor configurations
+.vscode/
+.idea/
+.vs/
