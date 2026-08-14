@@ -1,4 +1,4 @@
-# sprx-patcher
+# ELF-Craft
 
 A from-scratch C++17 rewrite of [SPRXPatcher](https://notnite.com/blog/ps3), a PS3 homebrew tool that patches a decrypted game executable (`EBOOT.elf`) to load a custom `.sprx` plugin at startup.
 
