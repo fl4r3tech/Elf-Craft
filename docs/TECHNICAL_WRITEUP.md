@@ -1,4 +1,4 @@
-# sprx-patcher: Technical Writeup
+# ELF-Craft: Technical Writeup
 
 **A from-scratch C++17 rewrite of SPRXPatcher, with a general-purpose ELF library, a verified PowerPC codegen layer, and a fully tested PS3 patching pipeline.**
 
