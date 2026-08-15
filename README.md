@@ -71,6 +71,11 @@ ctest --test-dir build --output-on-failure
 
 The `ps3patch` binary lands in `build/`. `SPRX_ENABLE_SANITIZERS=ON` is recommended for development builds; drop it for a release build.
 
+### Key Technical Features
+* Bypasses generic textbook assumptions by implementing Sony's custom 8-byte function descriptor format, verified against retail hardware dumps[cite: 1].
+* Handles multi-segment virtual-to-file address translation and safe bounds checking to prevent out-of-bounds reads on truncated or malformed binaries[cite: 3].
+* Features non-fatal diagnostics for header flags (`e_flags`) and structural validation tailored specifically to PS3 PPU execution environments[cite: 1, 2, 3].
+
 ## Scope and limitations
 
 - **Out of scope by design:** EBOOT.BIN decryption and re-signing. That's Sony's proprietary DRM (NPDRM/SELF signing), and this tool deliberately doesn't touch it — see [why](docs/TECHNICAL_WRITEUP.md#why-eboot-decryptionre-signing-is-out-of-scope) in the writeup. This tool operates on an already-decrypted `EBOOT.elf`, which existing community tools (e.g. `scetool`) produce.
