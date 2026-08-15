@@ -71,10 +71,10 @@ ctest --test-dir build --output-on-failure
 
 The `ps3patch` binary lands in `build/`. `SPRX_ENABLE_SANITIZERS=ON` is recommended for development builds; drop it for a release build.
 
-### Key Technical Features
-* Bypasses generic textbook assumptions by implementing Sony's custom 8-byte function descriptor format, verified against retail hardware dumps[cite: 1].
-* Handles multi-segment virtual-to-file address translation and safe bounds checking to prevent out-of-bounds reads on truncated or malformed binaries[cite: 3].
-* Features non-fatal diagnostics for header flags (`e_flags`) and structural validation tailored specifically to PS3 PPU execution environments[cite: 1, 2, 3].
+## Key Technical Features
+* Bypasses generic textbook assumptions by implementing Sony's custom 8-byte function descriptor format, verified against retail hardware dumps.
+* Handles multi-segment virtual-to-file address translation and safe bounds checking to prevent out-of-bounds reads on truncated or malformed binaries.
+* Features non-fatal diagnostics for header flags (`e_flags`) and structural validation tailored specifically to PS3 PPU execution environments.
 
 ## Scope and limitations
 
