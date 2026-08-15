@@ -8,13 +8,13 @@
 2. [Architecture overview](#2-architecture-overview)
 3. [Module: `libelf` — general-purpose ELF32/64 handling](#3-module-libelf)
 4. [Module: `ppc` — PowerPC instruction encode/decode](#4-module-ppc)
-5. [PS3-Specific ABI Divergences](#4-ps3-specific-abi-divergences)
-6. [Module: `ps3patch` — the PS3-specific application layer](#5-module-ps3patch)
-7. [Three bugs found and fixed](#6-three-bugs-found-and-fixed)
-8. [Testing methodology](#7-testing-methodology)
-9. [Why EBOOT decryption/re-signing is out of scope](#8-why-eboot-decryptionre-signing-is-out-of-scope)
-10. [Known limitations and future work](#9-known-limitations-and-future-work)
-11. [Build and usage reference](#10-build-and-usage-reference)
+5. [PS3-Specific ABI Divergences](#5-ps3-specific-abi-divergences)
+6. [Module: `ps3patch` — the PS3-specific application layer](#6-module-ps3patch)
+7. [Three bugs found and fixed](#7-three-bugs-found-and-fixed)
+8. [Testing methodology](#8-testing-methodology)
+9. [Why EBOOT decryption/re-signing is out of scope](#9-why-eboot-decryptionre-signing-is-out-of-scope)
+10. [Known limitations and future work](#10-known-limitations-and-future-work)
+11. [Build and usage reference](#11-build-and-usage-reference)
 
 ---
 
