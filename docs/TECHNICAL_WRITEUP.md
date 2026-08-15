@@ -176,7 +176,7 @@ If the corrected displacement no longer fits the instruction's displacement fiel
 
 ---
 
-## 5. PS3-Specific ELF Divergences
+## 5. PS3-Specific ABI Divergences
 
 Due to the proprietary nature of the Sony PS3 SDK, certain structures within the `EBOOT.elf` binaries deviate from the standard PowerPC 64-bit ELFv1 ABI. Recognizing these differences is critical for reliable binary analysis and patching.
 
