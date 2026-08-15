@@ -117,6 +117,27 @@ int main() {
         }
     }
 
+    // --- hasTypicalEFlags: advisory-only e_flags check ---
+    {
+        CHECK(hasTypicalEFlags(file), "unmodified fixture (e_flags == 0x0) is reported as typical");
+
+        std::vector<uint8_t> weirdFlags = bytes;
+        // e_flags lives at byte offset 48 in the Ehdr (e_ident[16] + e_type[2] + e_machine[2]
+        // + e_version[4] + e_entry[8] + e_phoff[8] + e_shoff[8] = 48), 4 bytes big-endian.
+        weirdFlags[48] = 0x00; weirdFlags[49] = 0x00; weirdFlags[50] = 0x00; weirdFlags[51] = 0x01;
+        auto reparsed = ElfFile<true, Endian::Big>::parse(weirdFlags);
+        CHECK(reparsed.ok(), "file with nonzero e_flags still parses structurally");
+        if (reparsed.ok()) {
+            CHECK(!hasTypicalEFlags(reparsed.value()), "nonzero e_flags is reported as atypical");
+            // Advisory only: parsing and entry resolution must still succeed --
+            // this is explicitly NOT a hard rejection gate.
+            CHECK(validatePs3Executable(reparsed.value()).ok(),
+                  "validatePs3Executable does not reject on e_flags alone (advisory, not a hard gate)");
+            CHECK(resolveEntryDescriptor(reparsed.value()).ok(),
+                  "resolveEntryDescriptor still succeeds despite atypical e_flags");
+        }
+    }
+
     std::printf("\n%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;
 }
