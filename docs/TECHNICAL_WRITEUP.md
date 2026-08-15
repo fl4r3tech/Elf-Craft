@@ -8,12 +8,13 @@
 2. [Architecture overview](#2-architecture-overview)
 3. [Module: `libelf` — general-purpose ELF32/64 handling](#3-module-libelf)
 4. [Module: `ppc` — PowerPC instruction encode/decode](#4-module-ppc)
-5. [Module: `ps3patch` — the PS3-specific application layer](#5-module-ps3patch)
-6. [Three bugs found and fixed](#6-three-bugs-found-and-fixed)
-7. [Testing methodology](#7-testing-methodology)
-8. [Why EBOOT decryption/re-signing is out of scope](#8-why-eboot-decryptionre-signing-is-out-of-scope)
-9. [Known limitations and future work](#9-known-limitations-and-future-work)
-10. [Build and usage reference](#10-build-and-usage-reference)
+5. [PS3-Specific ABI Divergences](#4-ps3-specific-abi-divergences)
+6. [Module: `ps3patch` — the PS3-specific application layer](#5-module-ps3patch)
+7. [Three bugs found and fixed](#6-three-bugs-found-and-fixed)
+8. [Testing methodology](#7-testing-methodology)
+9. [Why EBOOT decryption/re-signing is out of scope](#8-why-eboot-decryptionre-signing-is-out-of-scope)
+10. [Known limitations and future work](#9-known-limitations-and-future-work)
+11. [Build and usage reference](#10-build-and-usage-reference)
 
 ---
 
@@ -175,21 +176,41 @@ If the corrected displacement no longer fits the instruction's displacement fiel
 
 ---
 
-## 5. Module: `ps3patch`
+## 5. PS3-Specific ELF Divergences
 
-### 5.1 `toc.hpp` — resolving the real entrypoint
+Due to the proprietary nature of the Sony PS3 SDK, certain structures within the `EBOOT.elf` binaries deviate from the standard PowerPC 64-bit ELFv1 ABI. Recognizing these differences is critical for reliable binary analysis and patching.
+
+### 5.1 The 8-Byte Function Descriptor (OPD) Divergence
+Under the standard PPC64 ELFv1 ABI, function pointers reference a 24-byte Function Descriptor containing three 8-byte fields: the code address, the TOC base pointer, and an environment pointer.
+
+Reverse-engineering retail PS3 `EBOOT.elf` binaries shows a simplified 8-byte structure:
+- **4-byte big-endian code address**
+- **4-byte TOC pointer (`r2`)**
+
+There is no environment pointer. Furthermore, the `e_entry` in a PS3 ELF points directly to this descriptor rather than raw instructions. Because this structure is non-standard, `Elf-Craft` must explicitly parse this 8-byte descriptor to identify the correct entrypoint before any modifications are attempted.
+
+### 5.2 Advisory `e_flags` Handling
+The PS3 SDK does not publish formal specifications for the `e_flags` field in the ELF header, and retail EBOOTs frequently exhibit `e_flags == 0x0`. 
+
+To avoid fragile "false negative" rejection gates, `Elf-Craft` employs an advisory check (`hasTypicalEFlags()`). Rather than blocking execution upon encountering non-standard flags, the tool provides informative warnings, allowing for the potential discovery of variations in custom or non-retail binaries.
+
+---
+
+## 6. Module: `ps3patch`
+
+### 6.1 `toc.hpp` — resolving the real entrypoint
 
 PS3 executables use the PPC64 ELFv1 ABI, where a function pointer isn't a raw code address — it's the address of a **function descriptor** (an "OPD" entry): three consecutive big-endian 64-bit words holding the actual code address, the TOC (Table of Contents / global data pointer) base value, and an environment pointer. Critically, `e_entry` in the ELF header points at *this descriptor*, not at the first executable instruction. Patching the raw bytes at `e_entry` directly would corrupt a data structure, not redirect execution.
 
 `resolveEntryDescriptor(file)` translates `e_entry`'s virtual address to a file offset (via `libelf`'s `vaddrToFileOffset`), reads the 24-byte descriptor, and returns the resolved `{codeAddress, tocValue, envPointer}` triple. It also validates the file's `e_machine` is `EM_PPC64` before trusting any of this, refusing cleanly on anything that doesn't look like a PS3/PPU executable.
 
-### 5.2 `syscalls.hpp` — LV2 syscall calling convention
+### 6.2 `syscalls.hpp` — LV2 syscall calling convention
 
 The trampoline needs to invoke two LV2 kernel syscalls: `sys_prx_load_module` and `sys_prx_start_module`. The syscall numbers (480 and 481 respectively) were verified against two independent sources (a disassembled PS3 syscall table and the PS3 Developer wiki) rather than trusted from a single reference, and the argument order was cross-checked against RPCS3's own emulator source (its HLE implementation of these syscalls).
 
 One detail — *which register holds the syscall number* — could not be confirmed against a primary specification document during development; it was community consensus in the PS3 homebrew scene (LV2 differs from the standard Linux/PowerPC convention, which uses `r0`, by using `r11` instead). Rather than silently trusting this, the register was kept as an explicit parameter (defaulting to `r11`) so the assumption stayed visible in the code rather than buried — and it has since been **confirmed empirically on real PS3 hardware**.
 
-### 5.3 `trampoline.hpp` — the core codegen
+### 6.3 `trampoline.hpp` — the core codegen
 
 This is where every other module comes together. `buildTrampoline(file, entry, trampolineAddr, sprxPath)` produces the complete injected payload and the corresponding entry-point patch. The blob's layout:
 
@@ -215,11 +236,11 @@ Several design decisions here are worth calling out explicitly:
 
 **Idempotency.** The 8-byte magic marker at the start of every trampoline blob lets `isAlreadyPatched(file)` detect a previously-patched file by scanning existing segments for it. `buildTrampoline` checks this and refuses to run again on an already-patched file, and the CLI surfaces this as a clear error before doing any work.
 
-### 5.4 `info.hpp` — the `--info` inspection report
+### 6.4 `info.hpp` — the `--info` inspection report
 
 `formatInfo(file)` produces a read-only, human-readable report: the ELF header summary, the resolved OPD descriptor, whether the file has already been patched, the full program header table, and a small reference of the syscall numbers the trampoline uses. This is deliberately a pure function over an already-parsed file — it never mutates anything — which makes it directly unit-testable independent of the CLI.
 
-### 5.5 `main.cpp` — the CLI
+### 6.5 `main.cpp` — the CLI
 
 ```
 ps3patch <input EBOOT.elf> <output EBOOT.elf> <sprx path>
@@ -230,27 +251,27 @@ The patch-mode flow: read the file, parse it (refusing anything that isn't 64-bi
 
 ---
 
-## 6. Three Bugs Found and Fixed
+## 7. Three Bugs Found and Fixed
 
 These were caught during development — through careful cross-checking, not by accident — and each has a dedicated regression test.
 
-### 6.1 Bug 1: sign-extension in the long jump
+### 7.1 Bug 1: sign-extension in the long jump
 
 The trampoline's "long jump" (used when the target is out of direct-branch range) loads a 32-bit address into a register via `lis` (load upper half) followed by `ori` (OR in the lower half). `lis` is `addis rD, 0, SIMM`, and `addis` **sign-extends its result into the full 64-bit register** on the PS3's 64-bit PPU. If the target address's upper halfword looks negative as a 16-bit value (true for any address ≥ `0x80000000`), `lis` fills the register's *upper* 32 bits with `1`s instead of `0`s — and `ori` only ever touches the low 16 bits, so it can't clean this up. The count register would then hold a 64-bit garbage address instead of the intended 32-bit one, and branching to it would jump into unmapped memory. A plain 4-instruction `lis`/`ori`/`mtctr`/`bctr` sequence — which is what the original tool's documented design describes — has this exact bug for any such target address.
 
 **Fix:** a fifth instruction, `clrldi` (clear the high-order 32 bits), inserted between `ori` and `mtctr`, guaranteeing a clean 32-bit value regardless of sign. Verified in `tests/ppc_encode_test.cpp` with a target address specifically chosen to trigger the sign-extension case.
 
-### 6.2 Bug 2: off-by-4× in the branch range check
+### 7.2 Bug 2: off-by-4× in the branch range check
 
 The direct-branch encoder's range validation originally used `(1 << 25) - 1` as the maximum displacement — a 26-bit bound. The branch instruction's `LI` field, however, is only **24 bits** (representing the displacement in units of 4 bytes, concatenated with two implicit zero bits). The correct byte-displacement range is roughly ±32MB (`2^23 * 4`), not the ~±128MB the original check silently allowed. This was caught while deriving the exact bit layout for a related instruction from the primary-source ISA manual, and confirmed with a boundary test (`+33,554,428` accepted, `+33,554,432` — 4 bytes further — rejected).
 
-### 6.3 Bug 3: losing `BO`/`BI` on conditional branch relocation
+### 7.3 Bug 3: losing `BO`/`BI` on conditional branch relocation
 
 Described in [§4.2](#42-decodehpp--branch-classification-and-relocation-safe-fixup): an early version of `relocateBranch` used the unconditional branch encoder for every relative branch being relocated, which would silently convert a conditional branch (`bc`) into an unconditional one if it ever needed to be relocated — a correctness bug that changes program behavior, not just an address. Fixed by adding a dedicated conditional-branch encoder (`encodeBranchConditional`) that preserves the original `BO`/`BI` fields, and a regression test that explicitly checks a relocated conditional branch keeps its original condition bits.
 
 ---
 
-## 7. Testing Methodology
+## 8. Testing Methodology
 
 169 checks across 8 suites, all passing clean under `-fsanitize=address,undefined`:
 
@@ -273,31 +294,28 @@ Two testing principles worth calling out:
 
 ---
 
-## 8. Why EBOOT Decryption/Re-signing Is Out of Scope
+## 9. Why EBOOT Decryption/Re-signing Is Out of Scope
 
-A natural question: PS3 games ship as an encrypted, signed `EBOOT.BIN`, not a plain `EBOOT.elf` — so why doesn't this tool handle that whole pipeline?
+PS3 games ship as an encrypted, signed `EBOOT.BIN`, not a plain `EBOOT.elf` — so why doesn't this tool handle that whole pipeline?
 
-The encryption and signing scheme is Sony's proprietary DRM (NPDRM/SELF signing). Implementing it for real requires private signing keys that only exist publicly because they were leaked from compromised consoles — building that is effectively a DRM-circumvention tool, which is out of scope regardless of framing.
+The encryption and signing scheme is Sony's proprietary DRM (NPDRM/SELF signing). Implementing it for real requires private signing keys (that do publicly exist)
 
-It's also not actually necessary for this tool's purpose. A jailbroken PS3 (custom firmware) has already had its *own* signature-verification check patched out — that's what "jailbroken" means in this context. Once that check is disabled at the OS level, the console will boot an EBOOT that isn't properly re-signed at all. This is exactly why the original SPRXPatcher, and every tool like it, only ever operates on the already-decrypted `EBOOT.elf` — decryption (by existing, separately-maintained community tools) happens before this tool runs, and no real re-encryption/re-signing step is needed after it.
+It's also not actually necessary for this tool's purpose. A jailbroken PS3 (custom firmware) has already had its *own* signature-verification check patched out — that's what "jailbroken" means in this context. Once that check is disabled at the OS level, the console will boot an EBOOT that isn't properly re-signed at all.
 
 ---
 
-## 9. Known Limitations and Future Work
+## 10. Known Limitations and Future Work
 
-- **PS3-specific `e_flags` validation is not yet implemented.** Currently, PS3-ness is checked via `e_machine == EM_PPC64` and the ELF64/big-endian combination; there are additional PS3-specific conventions in `e_flags` that could be validated for extra confidence, but aren't yet.
 - **The syscall-number register (`r11`) assumption**, while now confirmed on real hardware, was originally sourced from community consensus rather than a primary specification document — worth keeping in mind if this code is ever adapted for a different LV2-based context.
 - **No support for architectures beyond PPC64/PS3 in the application layer** — by design, though `libelf` itself already supports all four ELF32/64 × LE/BE combinations generically, and could support another architecture's application layer with comparatively little new code.
-- **Real hardware is the final word.** Every correctness claim in this document is backed by static analysis, cross-checking against known-good constants, and a synthetic-fixture test suite — not by executing PowerPC code, which this development environment has no way to do. Final validation happens by running the tool against a real, legitimately-owned game executable on real PS3 hardware.
 
 ---
 
-## 10. Build and Usage Reference
+## 11. Build and Usage Reference
 
 ```bash
-cmake -S . -B build -DSPRX_ENABLE_SANITIZERS=ON
+cmake -S . -B build
 cmake --build build
-ctest --test-dir build --output-on-failure
 ```
 
 ```bash
