@@ -65,6 +65,11 @@ inline elf::Result<std::string, elf::Error> formatInfo(const Ps3ElfFile& file) {
     out += "  Machine:      EM_PPC64 (" + std::to_string(static_cast<uint16_t>(file.header().e_machine)) + ")\n";
     out += "  Type:         " + std::to_string(static_cast<uint16_t>(file.header().e_type)) + "\n";
     out += "  Flags:        " + detail::hex(static_cast<uint32_t>(file.header().e_flags)) + "\n";
+    if (!hasTypicalEFlags(file)) {
+        out += "                (unusual -- real PS3 EBOOTs observed so far all have e_flags == 0x0; "
+               "this doesn't necessarily mean the file is invalid, just that it differs from what "
+               "this tool has empirically seen)\n";
+    }
     out += "  Entry (raw):  " + detail::hex(file.entry()) + "  (OPD descriptor address, not code)\n";
     out += "\n";
 
